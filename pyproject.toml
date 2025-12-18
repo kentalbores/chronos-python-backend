@@ -1,0 +1,39 @@
+[tool.poetry]
+name = "src"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = {extras = ["standard"], version = "^0.115.12"}
+pydantic = "^2.11.4"
+pydantic-settings = "^2.9.1"
+mypy = {extras = ["pydantic"], version = "^1.15.0"}
+colorlog = "^6.9.0"
+uvicorn = "^0.34.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+httpx = "^0.28.1"
+pytest-asyncio = "^0.26.0"
+black = "^25.1.0"
+isort = "^6.0.1"
+pre-commit = "^4.2.0"
+flake8 = "^7.2.0"
+mypy = "^1.15.0"
+pytest-mock = "^3.14.0"
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+start = "src.run:start"
+test = "pytest:main"
