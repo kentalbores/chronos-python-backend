@@ -20,6 +20,10 @@ class Config(BaseSettings):
         "INFO", validation_alias="LOG_LEVEL"
     )  # e.g., DEBUG, INFO, WARNING, ERROR
 
+    # --- Supabase Configuration ---
+    SUPABASE_URL: str = Field(..., validation_alias="SUPABASE_URL")
+    SUPABASE_KEY: str = Field(..., validation_alias="SUPABASE_KEY")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
