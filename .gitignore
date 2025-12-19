@@ -138,3 +138,5 @@ cython_debug/
 .pytest_cache
 .vscode/
 exported_*
+
+.temp

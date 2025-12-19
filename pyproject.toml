@@ -12,6 +12,8 @@ pydantic-settings = "^2.9.1"
 mypy = {extras = ["pydantic"], version = "^1.15.0"}
 colorlog = "^6.9.0"
 uvicorn = "^0.34.2"
+supabase = "^2.27.0"
+httpx = "^0.28.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
