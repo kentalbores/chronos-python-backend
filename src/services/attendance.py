@@ -5,7 +5,7 @@ Combines OpenSearch attendance logs with Supabase employee data.
 """
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 from src.services.opensearch import opensearch_client
 from src.services.supabase import supabase_client
@@ -86,14 +86,13 @@ def _calculate_total_hours(logs: List[Dict[str, Any]]) -> Optional[float]:
     
     # If still clocked in, calculate time until now
     if current_tap_in:
+        # Use current local time for comparison
         now = datetime.now()
         duration = (now - current_tap_in).total_seconds()
-        total_seconds += duration
+        # Ensure non-negative duration
+        total_seconds += max(0, duration)
     
-    if total_seconds == 0:
-        return None
-    
-    # Convert to hours with 2 decimal places
+    # Convert to hours with 2 decimal places, return 0 if just clocked in
     return round(total_seconds / 3600, 2)
 
 
