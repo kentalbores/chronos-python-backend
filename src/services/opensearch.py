@@ -147,6 +147,40 @@ class OpenSearchClient:
         response = await self.execute_sql(query)
         return self._parse_sql_response(response)
 
+    async def get_attendance_logs_date_range(
+        self,
+        start_date: date,
+        end_date: date,
+        card_ids: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get attendance logs from OpenSearch for a date range.
+        
+        Args:
+            start_date: Start date (inclusive)
+            end_date: End date (inclusive)
+            card_ids: Optional list of card IDs to filter by
+        
+        Returns:
+            List of attendance log records
+        """
+        start_str = start_date.strftime("%Y-%m-%d")
+        end_str = end_date.strftime("%Y-%m-%d")
+        
+        # Build SQL query for date range
+        query = f"""
+            SELECT card_id, event_type, timestamp 
+            FROM attendances 
+            WHERE timestamp >= '{start_str} 00:00:00' 
+            AND timestamp <= '{end_str} 23:59:59'
+            ORDER BY timestamp ASC
+        """
+        
+        logger.debug(f"Executing OpenSearch date range query: {query}")
+        
+        response = await self.execute_sql(query)
+        return self._parse_sql_response(response)
+
 
 # Global client instance
 opensearch_client = OpenSearchClient()

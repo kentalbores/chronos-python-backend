@@ -70,3 +70,28 @@ class EmployeeDistributionResponse(BaseModel):
     absent: int = Field(..., description="Number of absent employees")
     distribution: List[DepartmentDistribution] = Field(..., description="Distribution by department")
 
+
+class EmployeeAttendanceReport(BaseModel):
+    """Model for employee attendance report over a date range."""
+    user_id: str = Field(..., description="Employee's user UUID")
+    employee_name: str = Field(..., description="Employee's full name")
+    department_name: Optional[str] = Field(None, description="Department name")
+    presents: int = Field(0, description="Number of days present")
+    lates: int = Field(0, description="Number of late entries")
+    absences: int = Field(0, description="Number of absences")
+    total_hours: float = Field(0.0, description="Total hours worked in the period")
+
+
+class AttendanceReportSummary(BaseModel):
+    """Summary for attendance report."""
+    start_date: date_type
+    end_date: date_type
+    total_working_days: int = Field(..., description="Number of working days in the range")
+    total_employees: int = Field(..., description="Total number of employees")
+
+
+class AttendanceReportResponse(BaseModel):
+    """Model for attendance report response over a date range."""
+    summary: AttendanceReportSummary
+    employees: List[EmployeeAttendanceReport]
+

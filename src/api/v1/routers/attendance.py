@@ -9,6 +9,7 @@ from src.services.attendance import (
     get_attendance_by_date,
     get_employee_attendance,
     get_employee_distribution,
+    get_attendance_report,
 )
 
 logger = logging.getLogger(__name__)
@@ -328,6 +329,71 @@ async def get_distribution_by_date(target_date: date) -> JSONResponse:
         )
     except Exception as e:
         log.error(f"Error getting employee distribution for {target_date}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get(
+    "/report",
+    tags=["attendance"],
+    summary="Get attendance report for a date range",
+    description="Get aggregated attendance report for all employees over a specified date range. Returns presents, lates, absences, and total_hours for each employee.",
+)
+async def get_report(start_date: date, end_date: date) -> JSONResponse:
+    """Get attendance report for all employees over a date range.
+
+    Args:
+        start_date: Start date of the report (YYYY-MM-DD format, inclusive)
+        end_date: End date of the report (YYYY-MM-DD format, inclusive)
+
+    Returns:
+        JSONResponse: Attendance report with aggregated data per employee.
+    
+    Example:
+        GET /attendance/report?start_date=2025-12-19&end_date=2025-12-30
+    """
+    log = logger.getChild("get_report")
+    
+    # Validate date range
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="start_date must be before or equal to end_date",
+        )
+    
+    try:
+        report = await get_attendance_report(start_date, end_date)
+        log.debug(f"Generated report for {report.summary.total_employees} employees from {start_date} to {end_date}")
+        
+        response_data = {
+            "summary": {
+                "start_date": str(report.summary.start_date),
+                "end_date": str(report.summary.end_date),
+                "total_working_days": report.summary.total_working_days,
+                "total_employees": report.summary.total_employees,
+            },
+            "employees": [
+                {
+                    "user_id": emp.user_id,
+                    "employee_name": emp.employee_name,
+                    "department_name": emp.department_name,
+                    "presents": emp.presents,
+                    "lates": emp.lates,
+                    "absences": emp.absences,
+                    "total_hours": emp.total_hours,
+                }
+                for emp in report.employees
+            ]
+        }
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=response_data,
+        )
+    except Exception as e:
+        log.error(f"Error generating attendance report: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
