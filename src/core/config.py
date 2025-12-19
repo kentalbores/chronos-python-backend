@@ -24,6 +24,12 @@ class Config(BaseSettings):
     SUPABASE_URL: str = Field(..., validation_alias="SUPABASE_URL")
     SUPABASE_KEY: str = Field(..., validation_alias="SUPABASE_KEY")
 
+    # --- Auth0 Configuration ---
+    AUTH0_DOMAIN: str = Field(..., validation_alias="AUTH0_DOMAIN")
+    AUTH0_CLIENT_ID: str = Field(..., validation_alias="AUTH0_CLIENT_ID")
+    AUTH0_CLIENT_SECRET: str = Field(..., validation_alias="AUTH0_CLIENT_SECRET")
+    AUTH0_CONNECTION: str = Field("Username-Password-Authentication", validation_alias="AUTH0_CONNECTION")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
