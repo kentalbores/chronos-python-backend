@@ -112,7 +112,20 @@ def _get_first_clock_in(logs: List[Dict[str, Any]]) -> Optional[datetime]:
 
 
 def _get_last_clock_out(logs: List[Dict[str, Any]]) -> Optional[datetime]:
-    """Get the last tap-out timestamp from logs."""
+    """
+    Get the last tap-out timestamp from logs.
+    Only returns a value if the LAST event is a tap-out (employee has left).
+    If the last event is a tap-in (employee is working), returns None.
+    """
+    if not logs:
+        return None
+    
+    # Check the last event - if it's a tap-in, employee is still working
+    last_log = logs[-1]  # logs are sorted by timestamp ASC
+    if last_log.get('event_type') == 'tap-in':
+        return None  # Employee is currently clocked in
+    
+    # Last event is tap-out, find the last tap-out timestamp
     last_out = None
     for log in logs:
         if log.get('event_type') == 'tap-out':
