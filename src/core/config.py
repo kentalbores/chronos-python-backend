@@ -30,6 +30,12 @@ class Config(BaseSettings):
     AUTH0_CLIENT_SECRET: str = Field(..., validation_alias="AUTH0_CLIENT_SECRET")
     AUTH0_CONNECTION: str = Field("Username-Password-Authentication", validation_alias="AUTH0_CONNECTION")
 
+    # --- OpenSearch Configuration ---
+    OPENSEARCH_URL: str = Field("https://localhost:9200", validation_alias="OPENSEARCH_URL")
+    OPENSEARCH_USERNAME: str = Field("admin", validation_alias="OPENSEARCH_USERNAME")
+    OPENSEARCH_PASSWORD: str = Field("admin", validation_alias="OPENSEARCH_PASSWORD")
+    OPENSEARCH_VERIFY_SSL: bool = Field(False, validation_alias="OPENSEARCH_VERIFY_SSL")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
