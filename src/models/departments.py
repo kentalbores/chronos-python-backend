@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 class DepartmentBase(BaseModel):
     """Base model for department data."""
     name: str = Field(..., description="Department name")
+    dep_color: str = Field(..., description="Department hex color (e.g., #FF5733)")
 
 
 class DepartmentCreate(DepartmentBase):
@@ -15,13 +16,15 @@ class DepartmentCreate(DepartmentBase):
 class DepartmentUpdate(BaseModel):
     """Model for updating an existing department."""
     dep_id: int = Field(..., description="Department ID to update")
-    name: str = Field(..., description="New department name")
+    name: Optional[str] = Field(None, description="New department name")
+    dep_color: Optional[str] = Field(None, description="New department hex color")
 
 
 class DepartmentResponse(BaseModel):
     """Model for department response."""
     dep_id: int
     name: str
+    dep_color: Optional[str] = None
 
 
 class DepartmentDeleteRequest(BaseModel):

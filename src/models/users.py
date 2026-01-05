@@ -112,7 +112,7 @@ class UserFilter(BaseModel):
     search: Optional[str] = Field(None, description="Search by name or email (partial match)")
     
     # Filters (exact match)
-    dep_id: Optional[int] = Field(None, description="Filter by department ID")
+    dep_name: Optional[str] = Field(None, description="Filter by department name")
     work_status: Optional[str] = Field(None, description="Filter by work status (on_site, wfh)")
     shift_type: Optional[str] = Field(None, description="Filter by shift type (day, night)")
     employment_type: Optional[str] = Field(None, description="Filter by employment type (Intern, Regular)")

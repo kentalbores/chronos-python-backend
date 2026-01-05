@@ -116,8 +116,8 @@ def get_all_users(filters: Optional[UserFilter] = None):
                 if filters.employment_type and employment_type != filters.employment_type:
                     continue
                 
-                # Filter by department
-                if filters.dep_id is not None and employee.get('dep_id') != filters.dep_id:
+                # Filter by department name (case insensitive)
+                if filters.dep_name and (not dep_name or dep_name.lower() != filters.dep_name.lower()):
                     continue
                 
                 # Filter by work_status

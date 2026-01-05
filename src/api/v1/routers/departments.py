@@ -118,6 +118,12 @@ async def create_new_department(department_data: DepartmentCreate) -> JSONRespon
                 "data": new_department,
             },
         )
+    except ValueError as e:
+        log.warning(f"Duplicate department: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
+        )
     except Exception as e:
         log.error(f"Error creating department: {str(e)}")
         raise HTTPException(

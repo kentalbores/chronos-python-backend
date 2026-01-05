@@ -31,7 +31,7 @@ router = APIRouter(
 )
 async def get_users(
     search: Optional[str] = Query(None, description="Search by name or email (partial match)"),
-    dep_id: Optional[int] = Query(None, description="Filter by department ID"),
+    dep_name: Optional[str] = Query(None, description="Filter by department name"),
     work_status: Optional[str] = Query(None, description="Filter by work status (on_site, wfh)"),
     shift_type: Optional[str] = Query(None, description="Filter by shift type (day, night)"),
     employment_type: Optional[str] = Query(None, description="Filter by employment type (Intern, Regular)"),
@@ -51,7 +51,7 @@ async def get_users(
         # Build filter object
         filters = UserFilter(
             search=search,
-            dep_id=dep_id,
+            dep_name=dep_name,
             work_status=work_status,
             shift_type=shift_type,
             employment_type=employment_type,
