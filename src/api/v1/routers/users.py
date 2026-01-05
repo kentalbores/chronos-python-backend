@@ -1,9 +1,11 @@
 import logging
+from typing import Optional
+from datetime import date
 
-from fastapi import APIRouter, status, HTTPException
+from fastapi import APIRouter, status, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from src.models.users import UserCreate, UserUpdate, UserDeleteRequest
+from src.models.users import UserCreate, UserUpdate, UserDeleteRequest, UserFilter
 from src.services.users import (
     get_all_users,
     get_user_by_id,
@@ -25,17 +27,42 @@ router = APIRouter(
     "",
     tags=["users"],
     summary="Get all users",
-    description="Retrieve a list of all users in the system.",
+    description="Retrieve a list of all users with optional filtering and search.",
 )
-async def get_users() -> JSONResponse:
-    """Get all users endpoint.
+async def get_users(
+    search: Optional[str] = Query(None, description="Search by name or email (partial match)"),
+    dep_id: Optional[int] = Query(None, description="Filter by department ID"),
+    work_status: Optional[str] = Query(None, description="Filter by work status (on_site, wfh)"),
+    shift_type: Optional[str] = Query(None, description="Filter by shift type (day, night)"),
+    employment_type: Optional[str] = Query(None, description="Filter by employment type (Intern, Regular)"),
+    has_rfid: Optional[bool] = Query(None, description="Filter by RFID status"),
+    date_hired_from: Optional[date] = Query(None, description="Filter by hire date (from)"),
+    date_hired_to: Optional[date] = Query(None, description="Filter by hire date (to)"),
+    limit: int = Query(100, ge=1, le=500, description="Max number of results (1-500)"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+) -> JSONResponse:
+    """Get all users endpoint with filtering and search.
 
     Returns:
-        JSONResponse: Array of all users with their details.
+        JSONResponse: Array of all users matching the filter criteria.
     """
     log = logger.getChild("get_users")
     try:
-        users = get_all_users()
+        # Build filter object
+        filters = UserFilter(
+            search=search,
+            dep_id=dep_id,
+            work_status=work_status,
+            shift_type=shift_type,
+            employment_type=employment_type,
+            has_rfid=has_rfid,
+            date_hired_from=date_hired_from,
+            date_hired_to=date_hired_to,
+            limit=limit,
+            offset=offset,
+        )
+        
+        users = get_all_users(filters)
         log.debug(f"Retrieved {len(users)} users")
         return JSONResponse(
             status_code=status.HTTP_200_OK,

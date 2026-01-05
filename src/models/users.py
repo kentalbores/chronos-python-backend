@@ -104,3 +104,24 @@ class CombinedUserResponse(BaseModel):
 class UserDeleteRequest(BaseModel):
     """Model for delete user request."""
     user_id: str = Field(..., description="User UUID to delete")
+
+
+class UserFilter(BaseModel):
+    """Model for filtering and searching users."""
+    # Search (partial match)
+    search: Optional[str] = Field(None, description="Search by name or email (partial match)")
+    
+    # Filters (exact match)
+    dep_id: Optional[int] = Field(None, description="Filter by department ID")
+    work_status: Optional[str] = Field(None, description="Filter by work status (on_site, wfh)")
+    shift_type: Optional[str] = Field(None, description="Filter by shift type (day, night)")
+    employment_type: Optional[str] = Field(None, description="Filter by employment type (Intern, Regular)")
+    has_rfid: Optional[bool] = Field(None, description="Filter by RFID status")
+    
+    # Date filters
+    date_hired_from: Optional[date] = Field(None, description="Filter by hire date (from)")
+    date_hired_to: Optional[date] = Field(None, description="Filter by hire date (to)")
+    
+    # Pagination
+    limit: Optional[int] = Field(100, ge=1, le=500, description="Max number of results (1-500)")
+    offset: Optional[int] = Field(0, ge=0, description="Number of results to skip")
