@@ -80,7 +80,8 @@ class EmployeeAttendanceReport(BaseModel):
     lates: int = Field(0, description="Number of late entries")
     absences: int = Field(0, description="Number of absences")
     total_hours: float = Field(0.0, description="Total hours worked in the period")
-
+    total_attendance_score: float = Field(0.0, description="Total attendance score in the period")
+    performance: Optional[str] = Field(None, description="Attendance performance rating")
 
 class AttendanceReportSummary(BaseModel):
     """Summary for attendance report."""

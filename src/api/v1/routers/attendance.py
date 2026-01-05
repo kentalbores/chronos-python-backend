@@ -383,6 +383,8 @@ async def get_report(start_date: date, end_date: date) -> JSONResponse:
                     "lates": emp.lates,
                     "absences": emp.absences,
                     "total_hours": emp.total_hours,
+                    "total_attendance_score": emp.total_attendance_score,
+                    "performance": emp.performance,
                 }
                 for emp in report.employees
             ]

@@ -575,6 +575,23 @@ async def get_attendance_report(start_date: date, end_date: date) -> AttendanceR
                     if status == AttendanceStatus.LATE_ENTRY:
                         lates += 1
             
+
+
+            # Attendance Score Calculation
+            attendance_score = (presents / (presents + lates + absences))*100 
+            late_penalty = lates * 0.5
+            total_attendance_score = attendance_score - late_penalty
+
+            if total_attendance_score > 90:
+                performance = 'Excellent'
+            elif total_attendance_score > 80:
+                performance = 'Fair'
+            elif total_attendance_score > 70:
+                performance = 'Poor'
+            else:
+                performance = 'Very Poor'
+            
+
             # Build report for this employee
             report = EmployeeAttendanceReport(
                 user_id=user_id,
@@ -584,6 +601,8 @@ async def get_attendance_report(start_date: date, end_date: date) -> AttendanceR
                 lates=lates,
                 absences=absences,
                 total_hours=round(total_hours, 2),
+                total_attendance_score=total_attendance_score,
+                performance=performance,
             )
             employee_reports.append(report)
         
