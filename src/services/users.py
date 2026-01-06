@@ -72,6 +72,7 @@ def get_all_users(filters: Optional[UserFilter] = None):
     Fetch all active users with their employee, intern, and department details.
     Supports filtering and searching.
     Filters out soft-deleted users (those with deleted_at values).
+    Excludes users with admin role (role_id = 1).
     
     Args:
         filters: Optional UserFilter object with search/filter criteria
@@ -83,6 +84,10 @@ def get_all_users(filters: Optional[UserFilter] = None):
         
         if not users:
             return []
+        
+        # Get admin user IDs (role_id = 1) to exclude them
+        admin_roles_response = supabase_client.table('user_roles').select('user_id').eq('role_id', 1).execute()
+        admin_user_ids = {role['user_id'] for role in admin_roles_response.data}
         
         # Get all employees
         employees_response = supabase_client.table('employees').select('*').execute()
@@ -100,6 +105,11 @@ def get_all_users(filters: Optional[UserFilter] = None):
         combined_users = []
         for user in users:
             user_id = user['user_id']
+            
+            # Skip admin users
+            if user_id in admin_user_ids:
+                continue
+            
             employee = employees.get(user_id, {})
             intern = interns.get(user_id)
             
@@ -272,14 +282,26 @@ def get_user_by_id(user_id: str, include_deleted: bool = False):
         raise Exception(f"Error fetching user: {str(e)}")
 
 
+def _is_intern(user_data: UserCreate) -> bool:
+    """Check if user data contains intern fields."""
+    return any([
+        user_data.university_name,
+        user_data.internship_start_date,
+        user_data.internship_end_date,
+        user_data.required_hours,
+    ])
+
+
 async def create_user(user_data: UserCreate):
     """
     Create a new user in Auth0 and Supabase with associated employee record.
+    If intern fields are provided, also creates an intern record.
     
     Flow:
     1. Create user in Auth0 (gets auth0_id and profile_url)
     2. Create user in Supabase users table
     3. Create employee record in Supabase employees table
+    4. If intern fields provided, create intern record
     """
     try:
         # Step 1: Create user in Auth0
@@ -329,13 +351,35 @@ async def create_user(user_data: UserCreate):
         }
         employee_response = supabase_client.table('employees').insert(employee_payload).execute()
         
+        # Step 4: Create intern record if intern fields are provided
+        is_intern = _is_intern(user_data)
+        if is_intern:
+            intern_payload = {
+                "user_id": user_id,
+                "university_name": user_data.university_name,
+                "university_advisor_name": user_data.university_advisor_name,
+                "university_advisor_contact_number": user_data.university_advisor_contact_number,
+                "university_address": user_data.university_address,
+                "university_contact_number": user_data.university_contact_number,
+                "university_email": user_data.university_email,
+                "internship_start_date": str(user_data.internship_start_date) if user_data.internship_start_date else None,
+                "internship_end_date": str(user_data.internship_end_date) if user_data.internship_end_date else None,
+                "hourly_rate": user_data.hourly_rate,
+                "required_hours": user_data.required_hours,
+                "hours_rendered": user_data.hours_rendered or 0,
+            }
+            intern_response = supabase_client.table('interns').insert(intern_payload).execute()
+        
         # Build response
         result = {
             **new_user,
             "auth0_id": auth0_id,
+            "employment_type": "Intern" if is_intern else "Regular",
         }
         if employee_response.data:
             result['employee'] = employee_response.data[0]
+        if is_intern and intern_response.data:
+            result['intern'] = intern_response.data[0]
         
         return result
     except Exception as e:

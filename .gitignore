@@ -140,3 +140,4 @@ cython_debug/
 exported_*
 
 .temp
+ecosystem.config.js
