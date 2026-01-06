@@ -29,6 +29,18 @@ class UserCreate(UserBase):
     dep_id: Optional[int] = Field(None, description="Department ID")
     leaves_used: Optional[int] = Field(0, description="Number of leaves used")
     remote_days_used: Optional[int] = Field(0, description="Number of remote days used")
+    # Intern fields (optional - if provided, user is created as intern)
+    university_name: Optional[str] = Field(None, description="University name (for interns)")
+    university_advisor_name: Optional[str] = Field(None, description="University advisor name (for interns)")
+    university_advisor_contact_number: Optional[str] = Field(None, description="University advisor contact (for interns)")
+    university_address: Optional[str] = Field(None, description="University address (for interns)")
+    university_contact_number: Optional[str] = Field(None, description="University contact number (for interns)")
+    university_email: Optional[str] = Field(None, description="University email (for interns)")
+    internship_start_date: Optional[date] = Field(None, description="Internship start date (for interns)")
+    internship_end_date: Optional[date] = Field(None, description="Internship end date (for interns)")
+    hourly_rate: Optional[float] = Field(None, description="Hourly rate (for interns)")
+    required_hours: Optional[int] = Field(None, description="Required hours (for interns)")
+    hours_rendered: Optional[float] = Field(0, description="Hours rendered (for interns)")
 
 
 class UserUpdate(BaseModel):

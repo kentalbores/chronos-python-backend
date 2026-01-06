@@ -51,6 +51,16 @@ class OpenSearchClient:
             )
             
             if response.status_code != 200:
+                # Check if it's an index not found error - return empty results
+                try:
+                    error_body = response.json()
+                    error_type = error_body.get("error", {}).get("type", "")
+                    if error_type == "IndexNotFoundException" or response.status_code == 404:
+                        logger.warning(f"OpenSearch index not found, returning empty results")
+                        return {"schema": [], "datarows": []}
+                except Exception:
+                    pass
+                
                 logger.error(f"OpenSearch query failed: {response.text}")
                 raise Exception(f"OpenSearch query failed: {response.text}")
             
