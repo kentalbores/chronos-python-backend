@@ -4,11 +4,31 @@ from src.models.departments import DepartmentCreate, DepartmentUpdate
 
 def get_all_departments():
     """
-    Fetch all departments from the database.
+    Fetch all departments from the database with employee count.
     """
     try:
+        # Get all departments
         response = supabase_client.table('departments').select('*').execute()
-        return response.data
+        departments = response.data
+        
+        if not departments:
+            return []
+        
+        # Get employee counts per department
+        employees_response = supabase_client.table('employees').select('dep_id').execute()
+        
+        # Count employees per department
+        employee_counts = {}
+        for emp in employees_response.data:
+            dep_id = emp.get('dep_id')
+            if dep_id:
+                employee_counts[dep_id] = employee_counts.get(dep_id, 0) + 1
+        
+        # Add employee_count to each department
+        for dept in departments:
+            dept['employee_count'] = employee_counts.get(dept['dep_id'], 0)
+        
+        return departments
     except Exception as e:
         raise Exception(f"Error fetching departments: {str(e)}")
 
