@@ -85,8 +85,8 @@ def get_all_users(filters: Optional[UserFilter] = None):
         if not users:
             return []
         
-        # Get admin user IDs (role_id = 1) to exclude them
-        admin_roles_response = supabase_client.table('user_roles').select('user_id').eq('role_id', 1).execute()
+        # Get admin user IDs (users with 'Admin' in role_name array) to exclude them
+        admin_roles_response = supabase_client.table('user_roles').select('user_id').contains('role_name', ['Admin']).execute()
         admin_user_ids = {role['user_id'] for role in admin_roles_response.data}
         
         # Get all employees
@@ -541,15 +541,15 @@ async def get_user_login_info(auth0_id: str) -> dict:
     This function:
     1. Fetches user data from Auth0 using the auth0_id
     2. Checks if canLogin is true in app_metadata
-    3. Gets user roles from Supabase (user_roles + roles tables)
+    3. Gets user roles from Supabase (role_name array from user_roles table)
     4. Determines firstLogin status based on last_password_reset and last_login
-    5. Returns formatted response with firstLogin, role, first_name, last_name, email, profile_url
+    5. Returns formatted response with firstLogin, roles, first_name, last_name, email, profile_url
     
     Args:
         auth0_id: The Auth0 user ID (e.g., 'auth0|abc123')
     
     Returns:
-        dict: User login info with firstLogin, role, first_name, last_name, email, profile_url
+        dict: User login info with firstLogin, roles (array), first_name, last_name, email, profile_url
     
     Raises:
         Exception: If user cannot login (canLogin is false) or user not found
@@ -575,18 +575,15 @@ async def get_user_login_info(auth0_id: str) -> dict:
         user_id = user['user_id']
         
         # Step 4: Get user roles from Supabase
-        # Join user_roles and roles tables to get role name
+        # role_name is stored as an array directly in user_roles table
         user_roles_response = supabase_client.table('user_roles').select(
-            'role_id, roles(role_name)'
+            'role_name'
         ).eq('user_id', user_id).execute()
         
-        # Extract role name (take first role if multiple)
-        role_name = None
+        # Extract role names (stored as array, e.g., ["Admin", "Moderator"])
+        role_names = None
         if user_roles_response.data:
-            first_role = user_roles_response.data[0]
-            roles_data = first_role.get('roles')
-            if roles_data:
-                role_name = roles_data.get('role_name')
+            role_names = user_roles_response.data[0].get('role_name')
         
         # Step 5: Determine firstLogin status
         # Logic: if (last_password_reset || last_login) == last_login, then firstLogin = true
@@ -611,8 +608,9 @@ async def get_user_login_info(auth0_id: str) -> dict:
         
         # Build response
         return {
+            "user_id": user_id,
             "firstLogin": first_login,
-            "role": role_name,
+            "roles": role_names or [],
             "first_name": user.get('first_name'),
             "last_name": user.get('last_name'),
             "email": email,
