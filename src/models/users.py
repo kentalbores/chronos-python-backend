@@ -141,8 +141,9 @@ class UserFilter(BaseModel):
 
 class UserLoginInfoResponse(BaseModel):
     """Model for user login info response from Auth0."""
+    user_id: str = Field(..., description="User's UUID")
     firstLogin: bool = Field(..., description="Whether this is the user's first login or first login after password reset")
-    role: Optional[str] = Field(None, description="User's role name")
+    roles: list[str] = Field(default_factory=list, description="User's role names (e.g., ['Admin', 'Moderator'])")
     first_name: str = Field(..., description="User's first name")
     last_name: str = Field(..., description="User's last name")
     email: Optional[str] = Field(None, description="User's email address")
