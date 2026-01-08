@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, status, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from src.models.users import UserCreate, UserUpdate, UserDeleteRequest, UserFilter
+from src.models.users import UserCreate, UserUpdate, UserDeleteRequest, UserFilter, UserLoginInfoResponse
 from src.services.users import (
     get_all_users,
     get_user_by_id,
@@ -13,6 +13,7 @@ from src.services.users import (
     update_user,
     soft_delete_user,
     restore_user,
+    get_user_login_info,
 )
 
 logger = logging.getLogger(__name__)
@@ -268,4 +269,57 @@ async def restore_deleted_user(user_id: str) -> JSONResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
+        )
+
+
+@router.get(
+    "/auth0/{auth0_id:path}",
+    tags=["users"],
+    summary="Get user login info by Auth0 ID",
+    description="Fetch user login info from Auth0 by auth0_id. Checks canLogin status, retrieves user roles, and determines first login status.",
+    response_model=UserLoginInfoResponse,
+)
+async def get_user_by_auth0_id(auth0_id: str) -> JSONResponse:
+    """Get user login info by Auth0 ID endpoint.
+
+    This endpoint:
+    1. Fetches user data from Auth0 using the auth0_id
+    2. Checks if canLogin is true in app_metadata
+    3. Gets user roles from Supabase
+    4. Determines firstLogin status based on last_password_reset and last_login
+    5. Returns user info with firstLogin, role, first_name, last_name, email, profile_url
+
+    Args:
+        auth0_id: The Auth0 user ID (e.g., 'auth0|695b775cb1168edd9248bad6')
+
+    Returns:
+        JSONResponse: User login info with firstLogin, role, first_name, last_name, email, profile_url
+    """
+    log = logger.getChild("get_user_by_auth0_id")
+    try:
+        user_info = await get_user_login_info(auth0_id)
+        log.debug(f"Retrieved login info for auth0_id: {auth0_id}")
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=user_info,
+        )
+    except Exception as e:
+        error_msg = str(e)
+        log.error(f"Error retrieving user by auth0_id {auth0_id}: {error_msg}")
+        
+        # Check for specific error conditions
+        if "not allowed to login" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User is not allowed to login",
+            )
+        elif "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with auth0_id {auth0_id} not found",
+            )
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg,
         )

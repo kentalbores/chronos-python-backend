@@ -532,3 +532,91 @@ def delete_user(user_id: str):
         return response.data[0] if response.data else None
     except Exception as e:
         raise Exception(f"Error deleting user: {str(e)}")
+
+
+async def get_user_login_info(auth0_id: str) -> dict:
+    """
+    Get user login info by Auth0 ID.
+    
+    This function:
+    1. Fetches user data from Auth0 using the auth0_id
+    2. Checks if canLogin is true in app_metadata
+    3. Gets user roles from Supabase (user_roles + roles tables)
+    4. Determines firstLogin status based on last_password_reset and last_login
+    5. Returns formatted response with firstLogin, role, first_name, last_name, email, profile_url
+    
+    Args:
+        auth0_id: The Auth0 user ID (e.g., 'auth0|abc123')
+    
+    Returns:
+        dict: User login info with firstLogin, role, first_name, last_name, email, profile_url
+    
+    Raises:
+        Exception: If user cannot login (canLogin is false) or user not found
+    """
+    try:
+        # Step 1: Fetch user data from Auth0
+        auth0_user = await auth0_client.get_user(auth0_id)
+        
+        # Step 2: Check if canLogin is true
+        app_metadata = auth0_user.get('app_metadata', {})
+        can_login = app_metadata.get('canLogin', False)
+        
+        if not can_login:
+            raise Exception("User is not allowed to login")
+        
+        # Step 3: Get user from Supabase by auth0_id
+        user_response = supabase_client.table('users').select('*').eq('auth0_id', auth0_id).execute()
+        
+        if not user_response.data:
+            raise Exception(f"User with auth0_id {auth0_id} not found in database")
+        
+        user = user_response.data[0]
+        user_id = user['user_id']
+        
+        # Step 4: Get user roles from Supabase
+        # Join user_roles and roles tables to get role name
+        user_roles_response = supabase_client.table('user_roles').select(
+            'role_id, roles(role_name)'
+        ).eq('user_id', user_id).execute()
+        
+        # Extract role name (take first role if multiple)
+        role_name = None
+        if user_roles_response.data:
+            first_role = user_roles_response.data[0]
+            roles_data = first_role.get('roles')
+            if roles_data:
+                role_name = roles_data.get('role_name')
+        
+        # Step 5: Determine firstLogin status
+        # Logic: if (last_password_reset || last_login) == last_login, then firstLogin = true
+        last_password_reset = auth0_user.get('last_password_reset')
+        last_login = auth0_user.get('last_login')
+        
+        # If last_password_reset exists, use it; otherwise use last_login
+        reference_timestamp = last_password_reset if last_password_reset else last_login
+        
+        # If reference_timestamp equals last_login, it's a first login scenario
+        first_login = reference_timestamp == last_login
+        
+        # Step 6: Get email from employees table
+        employee_response = supabase_client.table('employees').select('email').eq('user_id', user_id).execute()
+        email = None
+        if employee_response.data:
+            email = employee_response.data[0].get('email')
+        
+        # If not in employees, use Auth0 email
+        if not email:
+            email = auth0_user.get('email')
+        
+        # Build response
+        return {
+            "firstLogin": first_login,
+            "role": role_name,
+            "first_name": user.get('first_name'),
+            "last_name": user.get('last_name'),
+            "email": email,
+            "profile_url": user.get('profile_url'),
+        }
+    except Exception as e:
+        raise Exception(f"Error getting user login info: {str(e)}")
