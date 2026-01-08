@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 
@@ -25,6 +26,8 @@ class DepartmentResponse(BaseModel):
     dep_id: int
     name: str
     dep_color: Optional[str] = None
+    created_at: Optional[datetime] = Field(None, description="Department creation timestamp")
+    employee_count: Optional[int] = Field(0, description="Number of employees in this department")
 
 
 class DepartmentDeleteRequest(BaseModel):

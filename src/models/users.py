@@ -137,3 +137,13 @@ class UserFilter(BaseModel):
     # Pagination
     limit: Optional[int] = Field(100, ge=1, le=500, description="Max number of results (1-500)")
     offset: Optional[int] = Field(0, ge=0, description="Number of results to skip")
+
+
+class UserLoginInfoResponse(BaseModel):
+    """Model for user login info response from Auth0."""
+    firstLogin: bool = Field(..., description="Whether this is the user's first login or first login after password reset")
+    role: Optional[str] = Field(None, description="User's role name")
+    first_name: str = Field(..., description="User's first name")
+    last_name: str = Field(..., description="User's last name")
+    email: Optional[str] = Field(None, description="User's email address")
+    profile_url: Optional[str] = Field(None, description="User's profile picture URL")
