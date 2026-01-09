@@ -1,7 +1,7 @@
 import logging
 from datetime import date
 
-from fastapi import APIRouter, status, HTTPException
+from fastapi import APIRouter, status, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from src.services.attendance import (
@@ -10,6 +10,8 @@ from src.services.attendance import (
     get_employee_attendance,
     get_employee_distribution,
     get_attendance_report,
+    get_employee_attendance_period,
+    get_employee_attendance_range,
 )
 
 logger = logging.getLogger(__name__)
@@ -138,7 +140,7 @@ async def get_attendance_for_date(target_date: date) -> JSONResponse:
     "/employee/{user_id}",
     tags=["attendance"],
     summary="Get employee's today attendance",
-    description="Get today's attendance record for a specific employee.",
+    description="Get today's attendance record for a specific employee, including all tap-in/tap-out logs.",
 )
 async def get_employee_today_attendance(user_id: str) -> JSONResponse:
     """Get today's attendance for a specific employee.
@@ -147,7 +149,7 @@ async def get_employee_today_attendance(user_id: str) -> JSONResponse:
         user_id: The employee's user UUID
 
     Returns:
-        JSONResponse: Employee's attendance record.
+        JSONResponse: Employee's attendance record with all tap logs.
     """
     log = logger.getChild("get_employee_today_attendance")
     try:
@@ -171,6 +173,13 @@ async def get_employee_today_attendance(user_id: str) -> JSONResponse:
             "total_hours": attendance.total_hours,
             "status": attendance.status.value,
             "tap_count": attendance.tap_count,
+            "logs": [
+                {
+                    "tap_in": tap_log.tap_in.isoformat(),
+                    "tap_out": tap_log.tap_out.isoformat() if tap_log.tap_out else None,
+                }
+                for tap_log in (attendance.logs or [])
+            ],
         }
         
         return JSONResponse(
@@ -191,7 +200,7 @@ async def get_employee_today_attendance(user_id: str) -> JSONResponse:
     "/employee/{user_id}/date/{target_date}",
     tags=["attendance"],
     summary="Get employee's attendance by date",
-    description="Get attendance record for a specific employee on a specific date.",
+    description="Get attendance record for a specific employee on a specific date, including all tap-in/tap-out logs.",
 )
 async def get_employee_attendance_by_date(user_id: str, target_date: date) -> JSONResponse:
     """Get attendance for a specific employee on a specific date.
@@ -201,7 +210,7 @@ async def get_employee_attendance_by_date(user_id: str, target_date: date) -> JS
         target_date: The date to get attendance for (YYYY-MM-DD format)
 
     Returns:
-        JSONResponse: Employee's attendance record.
+        JSONResponse: Employee's attendance record with all tap logs.
     """
     log = logger.getChild("get_employee_attendance_by_date")
     try:
@@ -225,6 +234,13 @@ async def get_employee_attendance_by_date(user_id: str, target_date: date) -> JS
             "total_hours": attendance.total_hours,
             "status": attendance.status.value,
             "tap_count": attendance.tap_count,
+            "logs": [
+                {
+                    "tap_in": tap_log.tap_in.isoformat(),
+                    "tap_out": tap_log.tap_out.isoformat() if tap_log.tap_out else None,
+                }
+                for tap_log in (attendance.logs or [])
+            ],
         }
         
         return JSONResponse(
@@ -396,6 +412,152 @@ async def get_report(start_date: date, end_date: date) -> JSONResponse:
         )
     except Exception as e:
         log.error(f"Error generating attendance report: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get(
+    "/employee/{user_id}/period",
+    tags=["attendance"],
+    summary="Get employee's attendance for this week or month",
+    description="Get attendance records for a specific employee for the current week or month.",
+)
+async def get_employee_period_attendance(
+    user_id: str,
+    period: str = Query(..., description="Period to get: 'week' for this week, 'month' for this month", regex="^(week|month)$"),
+) -> JSONResponse:
+    """Get attendance for a specific employee over a period.
+
+    Args:
+        user_id: The employee's user UUID
+        period: 'week' for this week, 'month' for this month
+
+    Returns:
+        JSONResponse: Employee's attendance data for the period.
+    """
+    log = logger.getChild("get_employee_period_attendance")
+    try:
+        attendance = await get_employee_attendance_period(user_id, period)
+        
+        if not attendance:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Employee with ID {user_id} not found",
+            )
+        
+        log.debug(f"Retrieved {period} attendance for employee {user_id}")
+        
+        response_data = {
+            "user_id": attendance.user_id,
+            "employee_name": attendance.employee_name,
+            "department_name": attendance.department_name,
+            "start_date": str(attendance.start_date),
+            "end_date": str(attendance.end_date),
+            "total_working_days": attendance.total_working_days,
+            "presents": attendance.presents,
+            "lates": attendance.lates,
+            "absences": attendance.absences,
+            "total_hours": attendance.total_hours,
+            "daily_attendance": [
+                {
+                    "date": str(day.date),
+                    "clock_in": day.clock_in.isoformat() if day.clock_in else None,
+                    "clock_out": day.clock_out.isoformat() if day.clock_out else None,
+                    "total_hours": day.total_hours,
+                    "status": day.status.value,
+                }
+                for day in attendance.daily_attendance
+            ],
+        }
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=response_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error getting {period} attendance for employee {user_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get(
+    "/employee/{user_id}/range",
+    tags=["attendance"],
+    summary="Get employee's attendance for a date range",
+    description="Get attendance records for a specific employee over a custom date range.",
+)
+async def get_employee_range_attendance(
+    user_id: str,
+    start_date: date = Query(..., description="Start date (YYYY-MM-DD format, inclusive)"),
+    end_date: date = Query(..., description="End date (YYYY-MM-DD format, inclusive)"),
+) -> JSONResponse:
+    """Get attendance for a specific employee over a date range.
+
+    Args:
+        user_id: The employee's user UUID
+        start_date: Start date of the range (inclusive)
+        end_date: End date of the range (inclusive)
+
+    Returns:
+        JSONResponse: Employee's attendance data for the date range.
+    """
+    log = logger.getChild("get_employee_range_attendance")
+    
+    # Validate date range
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="start_date must be before or equal to end_date",
+        )
+    
+    try:
+        attendance = await get_employee_attendance_range(user_id, start_date, end_date)
+        
+        if not attendance:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Employee with ID {user_id} not found",
+            )
+        
+        log.debug(f"Retrieved attendance for employee {user_id} from {start_date} to {end_date}")
+        
+        response_data = {
+            "user_id": attendance.user_id,
+            "employee_name": attendance.employee_name,
+            "department_name": attendance.department_name,
+            "start_date": str(attendance.start_date),
+            "end_date": str(attendance.end_date),
+            "total_working_days": attendance.total_working_days,
+            "presents": attendance.presents,
+            "lates": attendance.lates,
+            "absences": attendance.absences,
+            "total_hours": attendance.total_hours,
+            "daily_attendance": [
+                {
+                    "date": str(day.date),
+                    "clock_in": day.clock_in.isoformat() if day.clock_in else None,
+                    "clock_out": day.clock_out.isoformat() if day.clock_out else None,
+                    "total_hours": day.total_hours,
+                    "status": day.status.value,
+                }
+                for day in attendance.daily_attendance
+            ],
+        }
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=response_data,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error getting attendance for employee {user_id} from {start_date} to {end_date}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
