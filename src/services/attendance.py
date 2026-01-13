@@ -28,8 +28,7 @@ logger = logging.getLogger(__name__)
 
 # Time thresholds for status determination
 EARLY_IN_THRESHOLD = time(9, 0, 0)    # Before 9:00 AM = early-in
-ON_TIME_THRESHOLD = time(9, 30, 0)     # Before 9:30 AM = on-time
-# After 9:30 AM = late-entry
+ON_TIME_THRESHOLD = time(9, 15, 0)     # Before 9:30 AM = on-time
 
 
 def _determine_status(clock_in_time: Optional[datetime]) -> AttendanceStatus:
@@ -38,9 +37,11 @@ def _determine_status(clock_in_time: Optional[datetime]) -> AttendanceStatus:
     
     Rules:
     - Clock in before 9:00 AM = early-in
-    - Clock in before 9:30 AM = on-time  
-    - Clock in after 9:30 AM = late-entry
+    - Clock in before 9:15 AM = on-time  
+    - Clock in after 9:15 AM = late-entry
     - No clock-in = absent
+
+    15 min grace period
     """
     if clock_in_time is None:
         return AttendanceStatus.ABSENT
@@ -384,18 +385,6 @@ async def get_employee_attendance(user_id: str, target_date: Optional[date] = No
         raise Exception(f"Error getting employee attendance: {str(e)}")
 
 
-# Department colors for chart (matching the UI)
-DEPARTMENT_COLORS = {
-    "Human Resources": "#6366f1",
-    "IT Department": "#22c55e", 
-    "Web Development": "#3b82f6",
-    "Software Development": "#06b6d4",
-    "Digital Marketing Specialists": "#ef4444",
-    "Graphics Design Department": "#f59e0b",
-    "Motion Graphics Design": "#8b5cf6",
-    "Technical Support": "#14b8a6",
-}
-
 
 async def get_employee_distribution(target_date: Optional[date] = None) -> EmployeeDistributionResponse:
     """
@@ -429,10 +418,15 @@ async def get_employee_distribution(target_date: Optional[date] = None) -> Emplo
         # Build distribution list
         distribution = []
         for dept_name, count in sorted(department_counts.items(), key=lambda x: -x[1]):
+            dept_response = supabase_client.table('departments').select('dep_color').eq('name', dept_name).execute()
+            if dept_response.data:
+                dept_color = dept_response.data[0].get('dep_color')
+            else:
+                dept_color = "#9ca3af"
             distribution.append(DepartmentDistribution(
                 department_name=dept_name,
                 count=count,
-                color=DEPARTMENT_COLORS.get(dept_name),
+                color=dept_color
             ))
         
         # Add absent as a category

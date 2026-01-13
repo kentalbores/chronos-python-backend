@@ -18,12 +18,16 @@ def get_all_departments():
             return []
         
         # Get employee counts per department
-        employees_response = supabase_client.table('employees').select('dep_id').execute()
-        
+        employees_response = supabase_client.table('employees').select('dep_id', 'can_login').execute()
+
         # Count employees per department
         employee_counts = {}
         for emp in employees_response.data:
+            if emp.get('can_login') is False:
+                continue
+
             dep_id = emp.get('dep_id')
+            
             if dep_id:
                 employee_counts[dep_id] = employee_counts.get(dep_id, 0) + 1
         
@@ -36,15 +40,6 @@ def get_all_departments():
         raise Exception(f"Error fetching departments: {str(e)}")
 
 
-# def get_department_by_id(dep_id: int):
-#     """
-#     Fetch a specific department by ID.
-#     """
-#     try:
-#         response = supabase_client.table('departments').select('*').eq('dep_id', dep_id).execute()
-#         return response.data[0] if response.data else None
-#     except Exception as e:
-#         raise Exception(f"Error fetching department: {str(e)}")
 
 
 def get_department_by_id(dep_id: int) -> Optional[Dict[str, Any]]:

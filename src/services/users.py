@@ -265,6 +265,7 @@ def get_user_by_id(user_id: str, include_deleted: bool = False):
         combined_user['address'] = employee.get('address')
         combined_user['remote_days_used'] = employee.get('remote_days_used')
         combined_user['dep_id'] = employee.get('dep_id')
+        combined_user['dep_name'] = dep_name
         
         # Add remaining fields
         if intern:
@@ -454,6 +455,7 @@ async def soft_delete_user(user_id: str):
     Soft delete a user:
     1. Set deleted_at in Supabase users table
     2. Set canLogin: false in Auth0
+    3. Set canLogin: false in supa
     
     This does NOT permanently delete the user.
     """
@@ -467,18 +469,22 @@ async def soft_delete_user(user_id: str):
         
         # Step 1: Set deleted_at in Supabase
         today = str(date.today())
-        update_response = supabase_client.table('users').update({
+        update_response_users = supabase_client.table('users').update({
             "deleted_at": today
         }).eq('user_id', user_id).execute()
+
+        update_response_employee = supabase_client.table('employees').update({
+            "can_login": False
+        }).eq('user_id', user_id).execute()
         
-        if not update_response.data:
+        if not update_response_users.data or not update_response_employee.data:
             return None
         
         # Step 2: Set canLogin: false in Auth0
         if auth0_id:
             await auth0_client.soft_delete_user(auth0_id)
         
-        return update_response.data[0]
+        return update_response_users.data[0]
     except Exception as e:
         raise Exception(f"Error soft deleting user: {str(e)}")
 
@@ -488,6 +494,7 @@ async def restore_user(user_id: str):
     Restore a soft-deleted user:
     1. Clear deleted_at in Supabase
     2. Set canLogin: true in Auth0
+    3. Set canLogin: true in supa emp table
     """
     try:
         # Get the user to find auth0_id
@@ -501,8 +508,12 @@ async def restore_user(user_id: str):
         update_response = supabase_client.table('users').update({
             "deleted_at": None
         }).eq('user_id', user_id).execute()
+
+        update_response_emp = supabase_client.table('employees').update({
+            "can_login": True
+        }).eq('user_id', user_id).execute()
         
-        if not update_response.data:
+        if not update_response.data or not update_response_emp.data:
             return None
         
         # Step 2: Set canLogin: true in Auth0
@@ -513,25 +524,6 @@ async def restore_user(user_id: str):
     except Exception as e:
         raise Exception(f"Error restoring user: {str(e)}")
 
-
-def delete_user(user_id: str):
-    """
-    DEPRECATED: Use soft_delete_user instead.
-    This function performs a hard delete for backwards compatibility.
-    """
-    try:
-        # Delete intern record first if exists
-        supabase_client.table('interns').delete().eq('user_id', user_id).execute()
-        
-        # Delete employee record (due to foreign key)
-        supabase_client.table('employees').delete().eq('user_id', user_id).execute()
-        
-        # Delete user record
-        response = supabase_client.table('users').delete().eq('user_id', user_id).execute()
-        
-        return response.data[0] if response.data else None
-    except Exception as e:
-        raise Exception(f"Error deleting user: {str(e)}")
 
 
 async def get_user_login_info(auth0_id: str) -> dict:
