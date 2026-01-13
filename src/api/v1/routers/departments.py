@@ -55,16 +55,21 @@ async def get_departments() -> JSONResponse:
     "/{dep_id}",
     tags=["departments"],
     summary="Get department by ID",
-    description="Retrieve a specific department by its ID.",
+    description="Retrieve a specific department by its ID with employee statistics and employee list.",
 )
 async def get_department(dep_id: int) -> JSONResponse:
-    """Get department by ID endpoint.
+    """Get department by ID endpoint with detailed information.
+
+    Returns department info including:
+    - Basic department info (dep_id, name, dep_color)
+    - Stats: employee_count, work_from_home_count, on_leave_count
+    - Employees: list of employees with user_id, name, type (intern/regular), phone_num, date_hired
 
     Args:
         dep_id: The ID of the department to retrieve.
 
     Returns:
-        JSONResponse: Department data.
+        JSONResponse: Department data with statistics and employee list.
     """
     log = logger.getChild("get_department")
     try:
@@ -74,7 +79,7 @@ async def get_department(dep_id: int) -> JSONResponse:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Department with ID {dep_id} not found",
             )
-        log.debug(f"Retrieved department: {dep_id}")
+        log.debug(f"Retrieved department with details: {dep_id}")
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={

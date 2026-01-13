@@ -19,6 +19,12 @@ class AttendanceRecord(BaseModel):
     timestamp: datetime
 
 
+class AttendanceLog(BaseModel):
+    """Model for a tap-in/tap-out session pair."""
+    tap_in: datetime = Field(..., description="Tap-in timestamp")
+    tap_out: Optional[datetime] = Field(None, description="Tap-out timestamp (null if still clocked in)")
+
+
 class EmployeeAttendance(BaseModel):
     """Model for employee attendance response."""
     # Employee info
@@ -36,6 +42,7 @@ class EmployeeAttendance(BaseModel):
     
     # Additional details
     tap_count: int = Field(0, description="Total number of taps for the day")
+    logs: Optional[List[AttendanceLog]] = Field(None, description="All tap-in/tap-out logs for the day")
 
 
 class AttendanceSummary(BaseModel):
@@ -95,4 +102,35 @@ class AttendanceReportResponse(BaseModel):
     """Model for attendance report response over a date range."""
     summary: AttendanceReportSummary
     employees: List[EmployeeAttendanceReport]
+
+
+class DailyAttendanceSummary(BaseModel):
+    """Model for a single day's attendance summary (without logs)."""
+    date: date_type = Field(..., description="Attendance date")
+    clock_in: Optional[datetime] = Field(None, description="First tap-in timestamp")
+    clock_out: Optional[datetime] = Field(None, description="Last tap-out timestamp")
+    total_hours: Optional[float] = Field(None, description="Total hours worked")
+    status: AttendanceStatus = Field(..., description="Attendance status")
+
+
+class EmployeeAttendancePeriodResponse(BaseModel):
+    """Model for employee attendance over a period (week/month/date range)."""
+    # Employee info
+    user_id: str = Field(..., description="Employee's user UUID")
+    employee_name: str = Field(..., description="Employee's full name")
+    department_name: Optional[str] = Field(None, description="Department name")
+    
+    # Period info
+    start_date: date_type = Field(..., description="Start date of the period")
+    end_date: date_type = Field(..., description="End date of the period")
+    total_working_days: int = Field(..., description="Number of working days in the period")
+    
+    # Summary stats
+    presents: int = Field(0, description="Number of days present")
+    lates: int = Field(0, description="Number of late entries")
+    absences: int = Field(0, description="Number of absences")
+    total_hours: float = Field(0.0, description="Total hours worked in the period")
+    
+    # Daily breakdown
+    daily_attendance: List[DailyAttendanceSummary] = Field(..., description="Daily attendance records")
 

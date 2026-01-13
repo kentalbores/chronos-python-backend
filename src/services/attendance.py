@@ -19,14 +19,16 @@ from src.models.attendance import (
     EmployeeAttendanceReport,
     AttendanceReportSummary,
     AttendanceReportResponse,
+    AttendanceLog,
+    DailyAttendanceSummary,
+    EmployeeAttendancePeriodResponse,
 )
 
 logger = logging.getLogger(__name__)
 
 # Time thresholds for status determination
 EARLY_IN_THRESHOLD = time(9, 0, 0)    # Before 9:00 AM = early-in
-ON_TIME_THRESHOLD = time(9, 30, 0)     # Before 9:30 AM = on-time
-# After 9:30 AM = late-entry
+ON_TIME_THRESHOLD = time(9, 15, 0)     # Before 9:30 AM = on-time
 
 
 def _determine_status(clock_in_time: Optional[datetime]) -> AttendanceStatus:
@@ -35,9 +37,11 @@ def _determine_status(clock_in_time: Optional[datetime]) -> AttendanceStatus:
     
     Rules:
     - Clock in before 9:00 AM = early-in
-    - Clock in before 9:30 AM = on-time  
-    - Clock in after 9:30 AM = late-entry
+    - Clock in before 9:15 AM = on-time  
+    - Clock in after 9:15 AM = late-entry
     - No clock-in = absent
+
+    15 min grace period
     """
     if clock_in_time is None:
         return AttendanceStatus.ABSENT
@@ -329,6 +333,39 @@ async def get_employee_attendance(user_id: str, target_date: Optional[date] = No
         total_hours = _calculate_total_hours(employee_logs)
         status = _determine_status(clock_in)
         
+        # Build logs list as tap-in/tap-out session pairs
+        logs = []
+        current_tap_in = None
+        
+        for log in employee_logs:
+            event_type = log.get('event_type')
+            timestamp_str = log.get('timestamp')
+            
+            if not timestamp_str:
+                continue
+            
+            try:
+                if isinstance(timestamp_str, str):
+                    timestamp = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
+                else:
+                    timestamp = timestamp_str
+            except ValueError:
+                continue
+            
+            if event_type == 'tap-in':
+                # If there's a previous unclosed tap-in, close it with null tap-out
+                if current_tap_in:
+                    logs.append(AttendanceLog(tap_in=current_tap_in, tap_out=None))
+                current_tap_in = timestamp
+            elif event_type == 'tap-out' and current_tap_in:
+                # Complete the session pair
+                logs.append(AttendanceLog(tap_in=current_tap_in, tap_out=timestamp))
+                current_tap_in = None
+        
+        # If there's an unclosed tap-in at the end, add it with null tap-out
+        if current_tap_in:
+            logs.append(AttendanceLog(tap_in=current_tap_in, tap_out=None))
+        
         return EmployeeAttendance(
             user_id=user_id,
             employee_name=employee_name,
@@ -340,24 +377,13 @@ async def get_employee_attendance(user_id: str, target_date: Optional[date] = No
             total_hours=total_hours,
             status=status,
             tap_count=len(employee_logs),
+            logs=logs if logs else None,
         )
     
     except Exception as e:
         logger.error(f"Error getting employee attendance: {str(e)}")
         raise Exception(f"Error getting employee attendance: {str(e)}")
 
-
-# Department colors for chart (matching the UI)
-DEPARTMENT_COLORS = {
-    "Human Resources": "#6366f1",
-    "IT Department": "#22c55e", 
-    "Web Development": "#3b82f6",
-    "Software Development": "#06b6d4",
-    "Digital Marketing Specialists": "#ef4444",
-    "Graphics Design Department": "#f59e0b",
-    "Motion Graphics Design": "#8b5cf6",
-    "Technical Support": "#14b8a6",
-}
 
 
 async def get_employee_distribution(target_date: Optional[date] = None) -> EmployeeDistributionResponse:
@@ -392,10 +418,15 @@ async def get_employee_distribution(target_date: Optional[date] = None) -> Emplo
         # Build distribution list
         distribution = []
         for dept_name, count in sorted(department_counts.items(), key=lambda x: -x[1]):
+            dept_response = supabase_client.table('departments').select('dep_color').eq('name', dept_name).execute()
+            if dept_response.data:
+                dept_color = dept_response.data[0].get('dep_color')
+            else:
+                dept_color = "#9ca3af"
             distribution.append(DepartmentDistribution(
                 department_name=dept_name,
                 count=count,
-                color=DEPARTMENT_COLORS.get(dept_name),
+                color=dept_color
             ))
         
         # Add absent as a category
@@ -666,4 +697,186 @@ def _calculate_completed_hours(logs: List[Dict[str, Any]]) -> float:
     
     # Don't count unclosed sessions for past days
     return round(total_seconds / 3600, 2)
+
+
+def _get_week_range() -> tuple[date, date]:
+    """Get the start and end date of the current week (Monday to Sunday)."""
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())  # Monday
+    end_of_week = start_of_week + timedelta(days=6)  # Sunday
+    return start_of_week, end_of_week
+
+
+def _get_month_range() -> tuple[date, date]:
+    """Get the start and end date of the current month."""
+    today = date.today()
+    start_of_month = today.replace(day=1)
+    # Get last day of month
+    if today.month == 12:
+        end_of_month = today.replace(day=31)
+    else:
+        end_of_month = today.replace(month=today.month + 1, day=1) - timedelta(days=1)
+    return start_of_month, end_of_month
+
+
+async def get_employee_attendance_period(
+    user_id: str,
+    period: str  # "week" or "month"
+) -> Optional[EmployeeAttendancePeriodResponse]:
+    """
+    Get attendance for a specific employee over a period (this week or this month).
+    
+    Args:
+        user_id: The employee's user UUID
+        period: "week" for this week, "month" for this month
+    
+    Returns:
+        EmployeeAttendancePeriodResponse or None if employee not found
+    """
+    if period == "week":
+        start_date, end_date = _get_week_range()
+    elif period == "month":
+        start_date, end_date = _get_month_range()
+    else:
+        raise ValueError("Period must be 'week' or 'month'")
+    
+    return await get_employee_attendance_range(user_id, start_date, end_date)
+
+
+async def get_employee_attendance_range(
+    user_id: str,
+    start_date: date,
+    end_date: date
+) -> Optional[EmployeeAttendancePeriodResponse]:
+    """
+    Get attendance for a specific employee over a date range.
+    
+    Args:
+        user_id: The employee's user UUID
+        start_date: Start date (inclusive)
+        end_date: End date (inclusive)
+    
+    Returns:
+        EmployeeAttendancePeriodResponse or None if employee not found
+    """
+    try:
+        # Get employee
+        employee_response = supabase_client.table('employees').select('*').eq('user_id', user_id).execute()
+        if not employee_response.data:
+            return None
+        employee = employee_response.data[0]
+        
+        # Get user
+        user_response = supabase_client.table('users').select('*').eq('user_id', user_id).is_('deleted_at', 'null').execute()
+        if not user_response.data:
+            return None
+        user = user_response.data[0]
+        
+        # Get department
+        dep_id = employee.get('dep_id')
+        department_name = None
+        if dep_id:
+            dep_response = supabase_client.table('departments').select('name').eq('dep_id', dep_id).execute()
+            if dep_response.data:
+                department_name = dep_response.data[0].get('name')
+        
+        # Get employee details
+        first_name = user.get('first_name', '')
+        last_name = user.get('last_name', '')
+        employee_name = f"{first_name} {last_name}".strip()
+        
+        rfid_value = employee.get('rfid_value')
+        
+        # Get all attendance logs for the date range
+        all_logs = []
+        if rfid_value:
+            all_logs = await opensearch_client.get_attendance_logs_date_range(start_date, end_date)
+            # Filter logs for this employee's RFID
+            all_logs = [log for log in all_logs if log.get('card_id') == rfid_value]
+        
+        # Group logs by date
+        logs_by_date: Dict[str, List[Dict[str, Any]]] = {}
+        for log in all_logs:
+            timestamp_str = log.get('timestamp')
+            if not timestamp_str:
+                continue
+            
+            try:
+                if isinstance(timestamp_str, str):
+                    log_dt = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
+                else:
+                    log_dt = timestamp_str
+                log_date_str = log_dt.date().isoformat()
+            except ValueError:
+                continue
+            
+            if log_date_str not in logs_by_date:
+                logs_by_date[log_date_str] = []
+            logs_by_date[log_date_str].append(log)
+        
+        # Generate working days list
+        working_days = _generate_date_range(start_date, end_date)
+        total_working_days = len(working_days)
+        
+        # Initialize counters
+        presents = 0
+        lates = 0
+        absences = 0
+        total_hours = 0.0
+        daily_attendance: List[DailyAttendanceSummary] = []
+        
+        # Process each working day
+        for work_date in working_days:
+            date_str = work_date.isoformat()
+            day_logs = logs_by_date.get(date_str, [])
+            
+            # Get clock in/out times
+            clock_in = _get_first_clock_in(day_logs)
+            clock_out = _get_last_clock_out(day_logs)
+            status = _determine_status(clock_in)
+            
+            # Calculate hours for this day
+            if work_date < date.today() and day_logs:
+                # For past days, only count completed sessions
+                day_hours = _calculate_completed_hours(day_logs)
+            else:
+                day_hours = _calculate_total_hours(day_logs)
+            
+            if day_hours:
+                total_hours += day_hours
+            
+            # Update counters based on status
+            if status == AttendanceStatus.ABSENT:
+                absences += 1
+            else:
+                presents += 1
+                if status == AttendanceStatus.LATE_ENTRY:
+                    lates += 1
+            
+            # Add daily summary
+            daily_attendance.append(DailyAttendanceSummary(
+                date=work_date,
+                clock_in=clock_in,
+                clock_out=clock_out,
+                total_hours=day_hours,
+                status=status,
+            ))
+        
+        return EmployeeAttendancePeriodResponse(
+            user_id=user_id,
+            employee_name=employee_name,
+            department_name=department_name,
+            start_date=start_date,
+            end_date=end_date,
+            total_working_days=total_working_days,
+            presents=presents,
+            lates=lates,
+            absences=absences,
+            total_hours=round(total_hours, 2),
+            daily_attendance=daily_attendance,
+        )
+    
+    except Exception as e:
+        logger.error(f"Error getting employee attendance range: {str(e)}")
+        raise Exception(f"Error getting employee attendance range: {str(e)}")
 
