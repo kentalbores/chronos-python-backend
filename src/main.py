@@ -13,15 +13,6 @@ setup_logging(log_level=log_level)
 logger = logging.getLogger(__name__)  # This logger will be used by the middleware too
 # ---------------------
 
-
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     """
-#     Lifespan context manager for FastAPI.
-#     """
-#     pass
-
-
 app = FastAPI()
 
 app.include_router(api_v1_router, prefix="/v1")
