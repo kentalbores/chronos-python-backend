@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 # Time thresholds for status determination
 EARLY_IN_THRESHOLD = time(9, 0, 0)    # Before 9:00 AM = early-in
-ON_TIME_THRESHOLD = time(9, 15, 0)     # Before 9:30 AM = on-time
+ON_TIME_THRESHOLD = time(9, 15, 0)    # Before 9:15 AM = on-time (15 min grace period)
 
 
 def _determine_status(clock_in_time: Optional[datetime]) -> AttendanceStatus:

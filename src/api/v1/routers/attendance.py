@@ -38,37 +38,13 @@ async def get_todays_attendance() -> JSONResponse:
     try:
         attendance = await get_today_attendance()
         log.debug(f"Retrieved attendance for {attendance.summary.total_employees} employees")
-        
-        # Convert to dict for JSON response
-        response_data = {
-            "date": str(attendance.response_date),
-            "summary": {
-                "total_employees": attendance.summary.total_employees,
-                "present": attendance.summary.present,
-                "absent": attendance.summary.absent,
-                "early_in": attendance.summary.early_in,
-                "on_time": attendance.summary.on_time,
-                "late_entry": attendance.summary.late_entry,
-            },
-            "employees": [
-                {
-                    "user_id": emp.user_id,
-                    "employee_name": emp.employee_name,
-                    "department_name": emp.department_name,
-                    "date": str(emp.attendance_date),
-                    "clock_in": emp.clock_in.isoformat() if emp.clock_in else None,
-                    "clock_out": emp.clock_out.isoformat() if emp.clock_out else None,
-                    "total_hours": emp.total_hours,
-                    "status": emp.status.value,
-                    "tap_count": emp.tap_count,
-                }
-                for emp in attendance.employees
-            ]
-        }
-        
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=response_data,
+            content=attendance.model_dump(
+                mode='json',
+                by_alias=True,
+                exclude={'employees': {'__all__': {'logs'}}}
+            ),
         )
     except Exception as e:
         log.error(f"Error getting today's attendance: {str(e)}")
@@ -97,36 +73,13 @@ async def get_attendance_for_date(target_date: date) -> JSONResponse:
     try:
         attendance = await get_attendance_by_date(target_date)
         log.debug(f"Retrieved attendance for {attendance.summary.total_employees} employees on {target_date}")
-        
-        response_data = {
-            "date": str(attendance.response_date),
-            "summary": {
-                "total_employees": attendance.summary.total_employees,
-                "present": attendance.summary.present,
-                "absent": attendance.summary.absent,
-                "early_in": attendance.summary.early_in,
-                "on_time": attendance.summary.on_time,
-                "late_entry": attendance.summary.late_entry,
-            },
-            "employees": [
-                {
-                    "user_id": emp.user_id,
-                    "employee_name": emp.employee_name,
-                    "department_name": emp.department_name,
-                    "date": str(emp.attendance_date),
-                    "clock_in": emp.clock_in.isoformat() if emp.clock_in else None,
-                    "clock_out": emp.clock_out.isoformat() if emp.clock_out else None,
-                    "total_hours": emp.total_hours,
-                    "status": emp.status.value,
-                    "tap_count": emp.tap_count,
-                }
-                for emp in attendance.employees
-            ]
-        }
-        
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=response_data,
+            content=attendance.model_dump(
+                mode='json',
+                by_alias=True,
+                exclude={'employees': {'__all__': {'logs'}}}
+            ),
         )
     except Exception as e:
         log.error(f"Error getting attendance for {target_date}: {str(e)}")
@@ -162,29 +115,9 @@ async def get_employee_today_attendance(user_id: str) -> JSONResponse:
             )
         
         log.debug(f"Retrieved attendance for employee {user_id}")
-        
-        response_data = {
-            "user_id": attendance.user_id,
-            "employee_name": attendance.employee_name,
-            "department_name": attendance.department_name,
-            "date": str(attendance.attendance_date),
-            "clock_in": attendance.clock_in.isoformat() if attendance.clock_in else None,
-            "clock_out": attendance.clock_out.isoformat() if attendance.clock_out else None,
-            "total_hours": attendance.total_hours,
-            "status": attendance.status.value,
-            "tap_count": attendance.tap_count,
-            "logs": [
-                {
-                    "tap_in": tap_log.tap_in.isoformat(),
-                    "tap_out": tap_log.tap_out.isoformat() if tap_log.tap_out else None,
-                }
-                for tap_log in (attendance.logs or [])
-            ],
-        }
-        
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=response_data,
+            content=attendance.model_dump(mode='json', by_alias=True),
         )
     except HTTPException:
         raise
@@ -223,29 +156,9 @@ async def get_employee_attendance_by_date(user_id: str, target_date: date) -> JS
             )
         
         log.debug(f"Retrieved attendance for employee {user_id} on {target_date}")
-        
-        response_data = {
-            "user_id": attendance.user_id,
-            "employee_name": attendance.employee_name,
-            "department_name": attendance.department_name,
-            "date": str(attendance.attendance_date),
-            "clock_in": attendance.clock_in.isoformat() if attendance.clock_in else None,
-            "clock_out": attendance.clock_out.isoformat() if attendance.clock_out else None,
-            "total_hours": attendance.total_hours,
-            "status": attendance.status.value,
-            "tap_count": attendance.tap_count,
-            "logs": [
-                {
-                    "tap_in": tap_log.tap_in.isoformat(),
-                    "tap_out": tap_log.tap_out.isoformat() if tap_log.tap_out else None,
-                }
-                for tap_log in (attendance.logs or [])
-            ],
-        }
-        
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=response_data,
+            content=attendance.model_dump(mode='json', by_alias=True),
         )
     except HTTPException:
         raise
@@ -277,24 +190,9 @@ async def get_distribution_today() -> JSONResponse:
     try:
         distribution = await get_employee_distribution()
         log.debug(f"Retrieved distribution: {distribution.present}/{distribution.total_employees} present")
-        
-        response_data = {
-            "total_employees": distribution.total_employees,
-            "present": distribution.present,
-            "absent": distribution.absent,
-            "distribution": [
-                {
-                    "department_name": dept.department_name,
-                    "count": dept.count,
-                    "color": dept.color,
-                }
-                for dept in distribution.distribution
-            ]
-        }
-        
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=response_data,
+            content=distribution.model_dump(mode='json'),
         )
     except Exception as e:
         log.error(f"Error getting employee distribution: {str(e)}")
@@ -323,25 +221,11 @@ async def get_distribution_by_date(target_date: date) -> JSONResponse:
     try:
         distribution = await get_employee_distribution(target_date)
         log.debug(f"Retrieved distribution for {target_date}: {distribution.present}/{distribution.total_employees} present")
-        
-        response_data = {
-            "date": str(target_date),
-            "total_employees": distribution.total_employees,
-            "present": distribution.present,
-            "absent": distribution.absent,
-            "distribution": [
-                {
-                    "department_name": dept.department_name,
-                    "count": dept.count,
-                    "color": dept.color,
-                }
-                for dept in distribution.distribution
-            ]
-        }
-        
+        response = distribution.model_dump(mode='json')
+        response["date"] = str(target_date)
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=response_data,
+            content=response,
         )
     except Exception as e:
         log.error(f"Error getting employee distribution for {target_date}: {str(e)}")
@@ -372,7 +256,6 @@ async def get_report(start_date: date, end_date: date) -> JSONResponse:
     """
     log = logger.getChild("get_report")
     
-    # Validate date range
     if start_date > end_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -382,33 +265,9 @@ async def get_report(start_date: date, end_date: date) -> JSONResponse:
     try:
         report = await get_attendance_report(start_date, end_date)
         log.debug(f"Generated report for {report.summary.total_employees} employees from {start_date} to {end_date}")
-        
-        response_data = {
-            "summary": {
-                "start_date": str(report.summary.start_date),
-                "end_date": str(report.summary.end_date),
-                "total_working_days": report.summary.total_working_days,
-                "total_employees": report.summary.total_employees,
-            },
-            "employees": [
-                {
-                    "user_id": emp.user_id,
-                    "employee_name": emp.employee_name,
-                    "department_name": emp.department_name,
-                    "presents": emp.presents,
-                    "lates": emp.lates,
-                    "absences": emp.absences,
-                    "total_hours": emp.total_hours,
-                    "total_attendance_score": emp.total_attendance_score,
-                    "performance": emp.performance,
-                }
-                for emp in report.employees
-            ]
-        }
-        
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=response_data,
+            content=report.model_dump(mode='json'),
         )
     except Exception as e:
         log.error(f"Error generating attendance report: {str(e)}")
@@ -448,33 +307,9 @@ async def get_employee_period_attendance(
             )
         
         log.debug(f"Retrieved {period} attendance for employee {user_id}")
-        
-        response_data = {
-            "user_id": attendance.user_id,
-            "employee_name": attendance.employee_name,
-            "department_name": attendance.department_name,
-            "start_date": str(attendance.start_date),
-            "end_date": str(attendance.end_date),
-            "total_working_days": attendance.total_working_days,
-            "presents": attendance.presents,
-            "lates": attendance.lates,
-            "absences": attendance.absences,
-            "total_hours": attendance.total_hours,
-            "daily_attendance": [
-                {
-                    "date": str(day.date),
-                    "clock_in": day.clock_in.isoformat() if day.clock_in else None,
-                    "clock_out": day.clock_out.isoformat() if day.clock_out else None,
-                    "total_hours": day.total_hours,
-                    "status": day.status.value,
-                }
-                for day in attendance.daily_attendance
-            ],
-        }
-        
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=response_data,
+            content=attendance.model_dump(mode='json'),
         )
     except HTTPException:
         raise
@@ -509,7 +344,6 @@ async def get_employee_range_attendance(
     """
     log = logger.getChild("get_employee_range_attendance")
     
-    # Validate date range
     if start_date > end_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -526,33 +360,9 @@ async def get_employee_range_attendance(
             )
         
         log.debug(f"Retrieved attendance for employee {user_id} from {start_date} to {end_date}")
-        
-        response_data = {
-            "user_id": attendance.user_id,
-            "employee_name": attendance.employee_name,
-            "department_name": attendance.department_name,
-            "start_date": str(attendance.start_date),
-            "end_date": str(attendance.end_date),
-            "total_working_days": attendance.total_working_days,
-            "presents": attendance.presents,
-            "lates": attendance.lates,
-            "absences": attendance.absences,
-            "total_hours": attendance.total_hours,
-            "daily_attendance": [
-                {
-                    "date": str(day.date),
-                    "clock_in": day.clock_in.isoformat() if day.clock_in else None,
-                    "clock_out": day.clock_out.isoformat() if day.clock_out else None,
-                    "total_hours": day.total_hours,
-                    "status": day.status.value,
-                }
-                for day in attendance.daily_attendance
-            ],
-        }
-        
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=response_data,
+            content=attendance.model_dump(mode='json'),
         )
     except HTTPException:
         raise

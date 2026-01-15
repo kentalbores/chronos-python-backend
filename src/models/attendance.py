@@ -1,7 +1,7 @@
 from typing import Optional, List
 from datetime import date as date_type, datetime, time
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class AttendanceStatus(str, Enum):
@@ -27,27 +27,26 @@ class AttendanceLog(BaseModel):
 
 class EmployeeAttendance(BaseModel):
     """Model for employee attendance response."""
-    # Employee info
+    model_config = ConfigDict(populate_by_name=True)
+    
     user_id: str = Field(..., description="Employee's user UUID")
     employee_name: str = Field(..., description="Employee's full name")
     department_name: Optional[str] = Field(None, description="Department name")
-    rfid_value: Optional[str] = Field(None, description="Employee's RFID card value")
-    
-    # Attendance info
-    attendance_date: date_type = Field(..., description="Attendance date")
+    rfid_value: Optional[str] = Field(None, description="Employee's RFID card value", exclude=True)
+    attendance_date: date_type = Field(..., description="Attendance date", serialization_alias="date")
     clock_in: Optional[datetime] = Field(None, description="First tap-in timestamp")
     clock_out: Optional[datetime] = Field(None, description="Last tap-out timestamp")
     total_hours: Optional[float] = Field(None, description="Total hours worked")
     status: AttendanceStatus = Field(..., description="Attendance status")
-    
-    # Additional details
     tap_count: int = Field(0, description="Total number of taps for the day")
     logs: Optional[List[AttendanceLog]] = Field(None, description="All tap-in/tap-out logs for the day")
 
 
 class AttendanceSummary(BaseModel):
     """Model for attendance summary statistics."""
-    summary_date: date_type
+    model_config = ConfigDict(populate_by_name=True)
+    
+    summary_date: date_type = Field(exclude=True)
     total_employees: int
     present: int
     absent: int
@@ -58,7 +57,9 @@ class AttendanceSummary(BaseModel):
 
 class DailyAttendanceResponse(BaseModel):
     """Model for daily attendance response."""
-    response_date: date_type
+    model_config = ConfigDict(populate_by_name=True)
+    
+    response_date: date_type = Field(serialization_alias="date")
     summary: AttendanceSummary
     employees: List[EmployeeAttendance]
 
@@ -106,6 +107,8 @@ class AttendanceReportResponse(BaseModel):
 
 class DailyAttendanceSummary(BaseModel):
     """Model for a single day's attendance summary (without logs)."""
+    model_config = ConfigDict(populate_by_name=True)
+    
     date: date_type = Field(..., description="Attendance date")
     clock_in: Optional[datetime] = Field(None, description="First tap-in timestamp")
     clock_out: Optional[datetime] = Field(None, description="Last tap-out timestamp")
