@@ -194,7 +194,6 @@ def get_user_by_id(user_id: str, include_deleted: bool = False):
         include_deleted: If True, returns user even if soft-deleted
     """
     try:
-        # Get user
         query = supabase_client.table('users').select('*').eq('user_id', user_id)
         if not include_deleted:
             query = query.is_('deleted_at', 'null')
@@ -205,15 +204,12 @@ def get_user_by_id(user_id: str, include_deleted: bool = False):
         
         user = user_response.data[0]
         
-        # Get employee details
         employee_response = supabase_client.table('employees').select('*').eq('user_id', user_id).execute()
         employee = employee_response.data[0] if employee_response.data else {}
         
-        # Get intern details
         intern_response = supabase_client.table('interns').select('*').eq('user_id', user_id).execute()
         intern = intern_response.data[0] if intern_response.data else None
         
-        # Get department name
         dep_id = employee.get('dep_id')
         dep_name = None
         if dep_id:
@@ -221,64 +217,7 @@ def get_user_by_id(user_id: str, include_deleted: bool = False):
             if dep_response.data:
                 dep_name = dep_response.data[0].get('name')
         
-        # Determine employment type
-        employment_type = "Intern" if intern else "Regular"
-        
-        # Build combined response
-        combined_user = {}
-        
-        if intern:
-            combined_user['user_id'] = user_id
-            combined_user['university_name'] = intern.get('university_name')
-            combined_user['university_advisor_name'] = intern.get('university_advisor_name')
-            combined_user['university_advisor_contact_number'] = intern.get('university_advisor_contact_number')
-            combined_user['university_address'] = intern.get('university_address')
-            combined_user['university_contact_number'] = intern.get('university_contact_number')
-            combined_user['university_email'] = intern.get('university_email')
-            combined_user['internship_start_date'] = intern.get('internship_start_date')
-            combined_user['internship_end_date'] = intern.get('internship_end_date')
-            combined_user['hourly_rate'] = intern.get('hourly_rate')
-            combined_user['required_hours'] = intern.get('required_hours')
-            combined_user['hours_rendered'] = intern.get('hours_rendered')
-        else:
-            combined_user['created_at'] = user.get('created_at')
-            combined_user['first_name'] = user.get('first_name')
-            combined_user['last_name'] = user.get('last_name')
-            combined_user['user_id'] = user_id
-            combined_user['auth0_id'] = user.get('auth0_id')
-            combined_user['profile_url'] = user.get('profile_url')
-            combined_user['deleted_at'] = user.get('deleted_at')
-        
-        # Add employee fields
-        combined_user['work_status'] = employee.get('work_status')
-        combined_user['has_rfid'] = employee.get('has_rfid')
-        combined_user['rfid_value'] = employee.get('rfid_value')
-        combined_user['email'] = employee.get('email')
-        combined_user['contact_number'] = employee.get('contact_number')
-        combined_user['birth_date'] = employee.get('birth_date')
-        combined_user['emergency_contact_number'] = employee.get('emergency_contact_number')
-        combined_user['emergency_contact_person'] = employee.get('emergency_contact_person')
-        combined_user['shift_type'] = employee.get('shift_type')
-        combined_user['employee_note'] = employee.get('employee_note')
-        combined_user['leaves_used'] = employee.get('leaves_used')
-        combined_user['date_hired'] = employee.get('date_hired')
-        combined_user['address'] = employee.get('address')
-        combined_user['remote_days_used'] = employee.get('remote_days_used')
-        combined_user['dep_id'] = employee.get('dep_id')
-        combined_user['dep_name'] = dep_name
-        
-        # Add remaining fields
-        if intern:
-            combined_user['first_name'] = user.get('first_name')
-            combined_user['last_name'] = user.get('last_name')
-            combined_user['profile_url'] = user.get('profile_url')
-            combined_user['dep_name'] = dep_name
-            combined_user['employment_type'] = employment_type
-            combined_user['auth0_id'] = user.get('auth0_id')
-        else:
-            combined_user['employment_type'] = employment_type
-        
-        return combined_user
+        return _build_combined_user(user, employee, intern, dep_name)
     except Exception as e:
         raise Exception(f"Error fetching user: {str(e)}")
 
@@ -354,6 +293,7 @@ async def create_user(user_data: UserCreate):
         
         # Step 4: Create intern record if intern fields are provided
         is_intern = _is_intern(user_data)
+        intern_response = None
         if is_intern:
             intern_payload = {
                 "user_id": user_id,
@@ -379,7 +319,7 @@ async def create_user(user_data: UserCreate):
         }
         if employee_response.data:
             result['employee'] = employee_response.data[0]
-        if is_intern and intern_response.data:
+        if intern_response and intern_response.data:
             result['intern'] = intern_response.data[0]
         
         return result
