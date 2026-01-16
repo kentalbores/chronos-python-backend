@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class DepartmentBase(BaseModel):
     """Base model for department data."""
     name: str = Field(..., description="Department name")
-    dep_color: str = Field(..., description="Department hex color (e.g., #FF5733)")
+    dep_color: Optional[str] = Field(default='#D3D3D3', description="Department hex color (e.g., #FF5733)")
 
 
 class DepartmentCreate(DepartmentBase):
