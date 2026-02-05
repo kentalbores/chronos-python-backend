@@ -84,6 +84,7 @@ class EmployeeAttendanceReport(BaseModel):
     user_id: str = Field(..., description="Employee's user UUID")
     employee_name: str = Field(..., description="Employee's full name")
     department_name: Optional[str] = Field(None, description="Department name")
+    employee_type: str = Field("Regular", description="Employment type: 'Intern' or 'Regular'")
     presents: int = Field(0, description="Number of days present")
     lates: int = Field(0, description="Number of late entries")
     absences: int = Field(0, description="Number of absences")

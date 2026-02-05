@@ -514,6 +514,10 @@ async def get_attendance_report(start_date: date, end_date: date) -> AttendanceR
         departments_response = supabase_client.table('departments').select('*').execute()
         departments = {dep['dep_id']: dep for dep in departments_response.data}
         
+        # Get all interns to determine employee type
+        interns_response = supabase_client.table('interns').select('user_id').execute()
+        intern_user_ids = {intern['user_id'] for intern in interns_response.data}
+        
         # Step 2: Get all attendance logs from OpenSearch for the date range
         all_logs = await opensearch_client.get_attendance_logs_date_range(start_date, end_date)
         
@@ -564,6 +568,9 @@ async def get_attendance_report(start_date: date, end_date: date) -> AttendanceR
             
             dep_id = employee.get('dep_id')
             department_name = departments.get(dep_id, {}).get('name') if dep_id else None
+            
+            # Determine employee type
+            employee_type = "Intern" if user_id in intern_user_ids else "Regular"
             
             rfid_value = employee.get('rfid_value')
             
@@ -628,6 +635,7 @@ async def get_attendance_report(start_date: date, end_date: date) -> AttendanceR
                 user_id=user_id,
                 employee_name=employee_name,
                 department_name=department_name,
+                employee_type=employee_type,
                 presents=presents,
                 lates=lates,
                 absences=absences,
