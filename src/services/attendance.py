@@ -7,6 +7,17 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import date, datetime, time, timedelta, timezone
 
+LOCAL_TZ = timezone(timedelta(hours=8))
+
+
+def _parse_timestamp(ts: str) -> datetime:
+    dt = datetime.fromisoformat(ts.replace(' ', 'T'))
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(LOCAL_TZ).replace(tzinfo=None)
+    else:
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(LOCAL_TZ).replace(tzinfo=None)
+    return dt
+
 from src.services.opensearch import opensearch_client
 from src.services.supabase import supabase_client
 from src.models.attendance import (
@@ -75,12 +86,8 @@ def _calculate_total_hours(logs: List[Dict[str, Any]]) -> Optional[float]:
         if not timestamp_str:
             continue
         
-        # Parse timestamp
         try:
-            if isinstance(timestamp_str, str):
-                timestamp = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
-            else:
-                timestamp = timestamp_str
+            timestamp = _parse_timestamp(str(timestamp_str))
         except ValueError:
             continue
         
@@ -110,9 +117,7 @@ def _get_first_clock_in(logs: List[Dict[str, Any]]) -> Optional[datetime]:
             timestamp_str = log.get('timestamp')
             if timestamp_str:
                 try:
-                    if isinstance(timestamp_str, str):
-                        return datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
-                    return timestamp_str
+                    return _parse_timestamp(str(timestamp_str))
                 except ValueError:
                     continue
     return None
@@ -139,10 +144,7 @@ def _get_last_clock_out(logs: List[Dict[str, Any]]) -> Optional[datetime]:
             timestamp_str = log.get('timestamp')
             if timestamp_str:
                 try:
-                    if isinstance(timestamp_str, str):
-                        last_out = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
-                    else:
-                        last_out = timestamp_str
+                    last_out = _parse_timestamp(str(timestamp_str))
                 except ValueError:
                     continue
     return last_out
@@ -345,10 +347,7 @@ async def get_employee_attendance(user_id: str, target_date: Optional[date] = No
                 continue
             
             try:
-                if isinstance(timestamp_str, str):
-                    timestamp = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
-                else:
-                    timestamp = timestamp_str
+                timestamp = _parse_timestamp(str(timestamp_str))
             except ValueError:
                 continue
             
@@ -526,12 +525,8 @@ async def get_attendance_report(start_date: date, end_date: date) -> AttendanceR
             if not card_id or not timestamp_str:
                 continue
             
-            # Parse date from timestamp
             try:
-                if isinstance(timestamp_str, str):
-                    log_dt = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
-                else:
-                    log_dt = timestamp_str
+                log_dt = _parse_timestamp(str(timestamp_str))
                 log_date_str = log_dt.date().isoformat()
             except ValueError:
                 continue
@@ -656,16 +651,6 @@ async def get_attendance_report(start_date: date, end_date: date) -> AttendanceR
 
 
 def _calculate_completed_hours(logs: List[Dict[str, Any]]) -> float:
-    """
-    Calculate completed hours from attendance logs (for past days).
-    Only counts tap-in/tap-out pairs, ignores unclosed sessions.
-    
-    Args:
-        logs: List of attendance logs for a single day
-    
-    Returns:
-        Total completed hours
-    """
     if not logs:
         return 0.0
     
@@ -679,12 +664,8 @@ def _calculate_completed_hours(logs: List[Dict[str, Any]]) -> float:
         if not timestamp_str:
             continue
         
-        # Parse timestamp
         try:
-            if isinstance(timestamp_str, str):
-                timestamp = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
-            else:
-                timestamp = timestamp_str
+            timestamp = _parse_timestamp(str(timestamp_str))
         except ValueError:
             continue
         
@@ -802,10 +783,7 @@ async def get_employee_attendance_range(
                 continue
             
             try:
-                if isinstance(timestamp_str, str):
-                    log_dt = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
-                else:
-                    log_dt = timestamp_str
+                log_dt = _parse_timestamp(str(timestamp_str))
                 log_date_str = log_dt.date().isoformat()
             except ValueError:
                 continue
